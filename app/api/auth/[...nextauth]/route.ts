@@ -1,20 +1,18 @@
-import NextAuth, { NextAuthOptions } from "next-auth";
+import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { connectDataBase } from "@/lib/db";
 import User from "@/models/user";
 import bcrypt from "bcrypt";
-import { routeModule } from "next/dist/build/templates/pages";
-export const authOptions: NextAuthOptions = {
+
+const handler = NextAuth({
   providers: [
     CredentialsProvider({
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "text" },
         password: { label: "Password", type: "password" },
-        
       },
       async authorize(credentials) {
-        
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Missing email or password");
         }
@@ -26,18 +24,20 @@ export const authOptions: NextAuthOptions = {
           throw new Error("No user found with this email");
         }
 
-        const isPasswordCorrect = await User.findOne({password: credentials.password});
+        const isPasswordCorrect = await bcrypt.compare(
+          credentials.password,
+          user.password
+        );
+
         if (!isPasswordCorrect) {
           throw new Error("Invalid password");
         }
-        
 
         return {
           id: user._id.toString(),
           name: user.name,
           email: user.email,
-          role : user.role,
-          
+          role: user.role,
         };
       },
     }),
@@ -55,24 +55,18 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role;
         token.id = user.id;
         token.email = user.email;
-        
-        
       }
       return token;
     },
     async session({ session, token }) {
-      const customtoken = token as {id:string, name:string, email:string,role:string};
-      
-       session.user.id= customtoken.id;
-       session.user.name = customtoken.name;
-       session.user.email = customtoken.email;
-       session.user.role = customtoken.role;
-
+      session.user.id = token.id as string;
+      session.user.name = token.name as string;
+      session.user.email = token.email as string;
+      session.user.role = token.role as string;
       return session;
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
-};
+});
 
-const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
