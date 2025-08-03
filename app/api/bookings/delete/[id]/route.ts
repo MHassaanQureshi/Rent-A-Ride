@@ -2,20 +2,10 @@ import { connectDataBase } from "@/lib/db";
 import bookings from "@/models/booking";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import NextAuth from "next-auth";
-import GitHubProvider from "next-auth/providers/github"; // or import your real providers
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import mongoose from "mongoose";
 
-const authOptions = {
-  providers: [
-    GitHubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID!,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-    }),
-  ],
-  secret: process.env.NEXTAUTH_SECRET,
-};
-
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: NextRequest, context: { params: { id: string } }) {
   await connectDataBase();
 
   const session = await getServerSession(authOptions);
@@ -24,12 +14,10 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  // ✅ Extract the ID from the URL
-  const url = new URL(req.url);
-  const id = url.pathname.split("/").pop(); // assumes URL ends with the ID
+  const bookingId = context.params.id;
 
-  if (!id) {
-    return NextResponse.json({ message: "Missing ID in URL" }, { status: 400 });
+  if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+    return NextResponse.json({ message: "Invalid Booking ID" }, { status: 400 });
   }
 
   try {
@@ -44,7 +32,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     const updatedBooking = await bookings.findOneAndUpdate(
-      { _id: id },
+      { _id: bookingId },
       { $set: updateField },
       { new: true }
     );
@@ -57,12 +45,13 @@ export async function DELETE(req: NextRequest) {
       (updatedBooking.userDeleted && updatedBooking.providerDeleted) ||
       (updatedBooking.providerasUserDeleted && updatedBooking.providerDeleted)
     ) {
-      const deletedBooking = await bookings.findOneAndDelete({ _id: id });
+      const deletedBooking = await bookings.findOneAndDelete({ _id: bookingId });
       return NextResponse.json({ message: "Booking fully deleted", data: deletedBooking });
     }
 
     return NextResponse.json({ message: "Booking updated", data: updatedBooking });
+
   } catch (error) {
-    return NextResponse.json({ message: `Failed to delete because ${error}` }, { status: 500 });
+    return NextResponse.json({ message: `Failed to delete: ${error}` }, { status: 500 });
   }
 }
