@@ -1,33 +1,34 @@
 import { connectDataBase } from "@/lib/db";
 import booking from "@/models/booking";
-import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
-import Vehicle from "@/models/vehicle"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-// updating booking status
 
-export async function POST(req:NextRequest){
-  await connectDataBase();
-  const {id} = await req.json()
-    console.log(id)
- 
-    try {
-        const updateItem = await booking.findByIdAndUpdate(id,{
-            providerasUserDeleted:true,
-            
-        },
-        {new : true}
-)
-        if (!updateItem) {
-            alert("Status Updated")
-        
-        }
-        alert("Status Updated")
-           
-      } catch (error) {
-        return NextResponse.json({message:`failed to delete because ${error}`})
-         
-      }
-     
+export async function POST(req: NextRequest) {
+  try {
+    await connectDataBase();
 
+    const { id } = await req.json();
+
+    if (!id) {
+      return NextResponse.json({ message: "Booking ID is required." }, { status: 400 });
+    }
+
+    const updatedBooking = await booking.findByIdAndUpdate(
+      id,
+      { providerasUserDeleted: true },
+      { new: true }
+    );
+
+    if (!updatedBooking) {
+      return NextResponse.json({ message: "Booking not found." }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      message: "Booking marked as deleted by provider.",
+      booking: updatedBooking,
+    });
+  } catch (error) {
+    return NextResponse.json({
+      message: `Failed to update booking: ${error}`,
+    }, { status: 500 });
+  }
 }
